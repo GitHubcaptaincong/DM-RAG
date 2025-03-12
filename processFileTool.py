@@ -82,7 +82,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         try:
             # 将PDF转换为图片
             images = extract_images_as_base64_from_pdf(pdf_path)
-            text = getTextFromImagesWithLLM(images)
+            text = get_text_from_images_with_llm(images)
         except Exception as e:
             print(f"LLM识别图片失败: {str(e)}")
     return text
@@ -144,7 +144,7 @@ def process_text_file(file_path: str) -> str:
         return ""
 
 
-def getTextFromImagesWithLLM(images):
+def get_text_from_images_with_llm(images):
     """视觉大模型解析图片信息获得图片文本"""
     text = ""
     client = OpenAI(

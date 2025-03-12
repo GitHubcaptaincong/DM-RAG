@@ -20,17 +20,17 @@ prompt_template = """基于以下已知信息，简洁和专业的回答用户�
     问题：{question}"""
 
 
-def getPrompt(question, vector_store, k):
-    simialText = []
+def get_prompt(question, vector_store, k):
+    simial_text = []
     search_list = vector_store.similarity_search(question, k=k)
     for i in search_list:
-        simialText.append(i.page_content)
-    after_rank_search_list = afterRanker(question, simialText, k)
+        simial_text.append(i.page_content)
+    after_rank_search_list = after_ranker(question, simial_text, k)
     return PromptTemplate.from_template(prompt_template).invoke(
         {"context": after_rank_search_list, "question": question}).text
 
 
-def afterRanker(question, search_list, k):
+def after_ranker(question, search_list, k):
     reranker = FlagReranker('BAAI/bge-reranker-v2-m3', use_fp16=True)
     score_text = []
     for search in search_list:
@@ -43,7 +43,7 @@ def afterRanker(question, search_list, k):
     return text
 
 
-def talkWithLLM(prompt):
+def talk_with_llm(prompt):
     model = ChatOpenAI(
         model=MODEL_NAME,
         api_key=os.getenv("DASHSCOPE_API_KEY"),
@@ -107,7 +107,7 @@ def main():
     vector_store = Chroma(persist_directory="data",
                           embedding_function=embeddings,
                           collection_name="lc_chroma_demo")
-    collection = vector_store.get();
+    collection = vector_store.get()
     if len(collection["ids"]) == 0:
         # 替换原来的单个PDF处理为目录处理
         directory_path = "./data"  # 指定要处理的目录路径
@@ -124,11 +124,11 @@ def main():
             collection_name="lc_chroma_demo")
 
     query = "王小冉的性格外貌是怎么样的"
-    prompt = getPrompt(query, vector_store, 25)
+    prompt = get_prompt(query, vector_store, 25)
     print(prompt)
 
-    ans = talkWithLLM(prompt)
-    print(print)
+    ans = talk_with_llm(prompt)
+    print(ans)
 
 
 if __name__ == "__main__":
