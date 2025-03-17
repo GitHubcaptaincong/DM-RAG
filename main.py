@@ -1,19 +1,45 @@
+from colorama import Fore
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from FlagEmbedding import FlagReranker
-from langchain_community.retrievers import BM25Retriever
-import os, math, fitz, PyPDF2
+import os, math
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_chroma import Chroma
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import speech_recognition as sr
-from aip import AipSpeech
 
-from config import MODEL_NAME, BASE_URL
-from processFileTool import get_file_type, extract_text_from_pdf, process_audio_file, process_text_file
+from LLMConfig import MODEL_NAME, BASE_URL
+from ProcessFileTool import get_file_type, extract_text_from_pdf, process_audio_file, process_text_file
+from utils.ColoredPrintHandler import ColoredPrintHandler
+
+
+def init_vector_store():
+    """初始化嵌入模型"""
+    embeddings = DashScopeEmbeddings(
+        model="text-embedding-v1",
+        dashscope_api_key=os.getenv("DASHSCOPE_API_KEY")
+    )
+    vector_store = Chroma(persist_directory="data",
+                          embedding_function=embeddings,
+                          collection_name="lc_chroma_demo")
+    collection = vector_store.get()
+    if len(collection["ids"]) == 0:
+        # 替换原来的单个PDF处理为目录处理
+        directory_path = "./data"  # 指定要处理的目录路径
+        text_list, processed_file_list = process_directory(directory_path)
+        # 文档切割
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50, add_start_index=True)
+        text_documents = text_splitter.split_documents([Document(page_content=text) for text in text_list])
+
+        # 存入向量数据库
+        vector_store = Chroma.from_documents(
+            documents=text_documents,
+            embedding=embeddings,
+            persist_directory="data",
+            collection_name="lc_chroma_demo")
+    return vector_store
 
 prompt_template = """基于以下已知信息，简洁和专业的回答用户的问题，不需要在答案中添加编造成分。
     已知内容：{context}
@@ -35,19 +61,18 @@ def after_ranker(question, search_list, k):
     score_text = []
     for search in search_list:
         score_text.append([reranker.compute_score([question, search]), search])
+
     sorted_data = sorted(score_text, key=lambda x: x[0], reverse=True)
-    minK = max(min(len(sorted_data), 3), math.floor(k / 3))
-    text = []
-    for i in sorted_data[:minK]:
-        text.append(i[1])
-    return text
+    min_k = max(min(len(sorted_data), 3), math.floor(k / 3))
+    return list(map(lambda x: x[1], sorted_data[:min_k]))
 
 
-def talk_with_llm(prompt):
+def talk_with_llm(prompt, model=MODEL_NAME):
     model = ChatOpenAI(
-        model=MODEL_NAME,
+        model=model,
         api_key=os.getenv("DASHSCOPE_API_KEY"),
         base_url=BASE_URL,
+        callbacks=[ColoredPrintHandler(Fore.GREEN)]
     )
     return model.invoke(prompt).content
 
@@ -99,37 +124,15 @@ def process_single_file(file_path: str, file_type: str) -> str:
         raise Exception(f"Error processing file {file_path}: {str(e)}")
 
 
-def main():
-    # 初始化嵌入模型
-    embeddings = DashScopeEmbeddings(
-        model="text-embedding-v1", dashscope_api_key=os.getenv("DASHSCOPE_API_KEY")
-    )
-    vector_store = Chroma(persist_directory="data",
-                          embedding_function=embeddings,
-                          collection_name="lc_chroma_demo")
-    collection = vector_store.get()
-    if len(collection["ids"]) == 0:
-        # 替换原来的单个PDF处理为目录处理
-        directory_path = "./data"  # 指定要处理的目录路径
-        text_list, processed_file_list = process_directory(directory_path)
-        # 文档切割
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=50, add_start_index=True)
-        text_documents = text_splitter.split_documents([Document(page_content=text) for text in text_list])
-
-        # 存入向量数据库
-        vector_store = Chroma.from_documents(
-            documents=text_documents,
-            embedding=embeddings,
-            persist_directory="data",
-            collection_name="lc_chroma_demo")
+def __test():
+    vector_store = init_vector_store()
 
     query = "王小冉的性格外貌是怎么样的"
     prompt = get_prompt(query, vector_store, 25)
     print(prompt)
 
-    ans = talk_with_llm(prompt)
-    print(ans)
+    talk_with_llm(prompt)
 
 
 if __name__ == "__main__":
-    main()
+    __test()

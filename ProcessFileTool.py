@@ -1,17 +1,10 @@
-from FlagEmbedding import FlagReranker
-from langchain_community.retrievers import BM25Retriever
 import os, io, PyPDF2, fitz, base64, mimetypes
 from PIL import Image
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.schema import Document
-from langchain_community.embeddings import DashScopeEmbeddings
-from langchain_chroma import Chroma
 from openai import OpenAI
-import speech_recognition as sr
 from pydub import AudioSegment
 from aip import AipSpeech
 
-from config import BAIDU_APP_ID, BAIDU_API_KEY, SECRET_KEY, DASHSCOPE_API_KEY
+from LLMConfig import BAIDU_APP_ID, BAIDU_API_KEY, SECRET_KEY, DASHSCOPE_API_KEY
 
 
 def get_file_type(file_path: str) -> str:
@@ -158,7 +151,7 @@ def get_text_from_images_with_llm(images):
             "image_url": {"url": f"data:image/jpeg;base64,{i}"},
         }
         images_messages.append(con)
-        images_messages.append({"type": "text", "text": "请详细的说明图片上的内容，不要进行总结和概述"});
+        images_messages.append({"type": "text", "text": "请详细的说明图片上的内容，不要进行总结和概述"})
         response = client.chat.completions.create(
             model="qwen-vl-max-latest",
             messages=[
